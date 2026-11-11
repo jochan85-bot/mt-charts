@@ -1,7 +1,16 @@
 /* mtchart.v1.js — 종목 일봉 차트 표시 모듈.
-   호출: MTChart.mount(요소, { market: 'US'|'KR', ticker: 'AEHR', markers: [{ date: '2026-08-13', side: 'buy'|'sell' }], pivot: 116.97, range: 'y1' })
+   호출: MTChart.mount(요소, { market: 'US'|'KR', ticker: 'AEHR', markers: [{ date: '2026-08-13', side: 'buy'|'sell', price: 41.2 }], pivot: 116.97, range: 'y1',
+                              focus: { from: '2026-05-13', to: '2026-09-13' } })
      - 요소가 화면에 들어올 때(접힌 칸이면 펼쳐져 보일 때) 처음 데이터를 받는다. 같은 종목을 다시 열면 받아 둔 데이터를 쓴다(재요청 0).
-     - markers 는 date·side 두 값만 읽는다(다른 값은 무시). 매수 ▲(봉 아래)·매도 ▼(봉 위).
+     - markers 는 date·side·price 세 값만 읽는다(다른 값은 무시). 매수 ▲(봉 아래)·매도 ▼(봉 위).
+       price(선택, 양수) = 그 지점의 거래 가격 — 호출하는 페이지에 이미 글자로 보이는 값만 넘긴다(매매일지).
+       주어지면 화살표 옆 작은 글씨 「매수 <값>」(▲ 아래)·「매도 <값>」(▼ 위) — 미국 소수 2자리, 한국 원 단위 정수.
+       같은 봉·같은 방향 여러 건은 1개로 묶어 「매수 ×2 <값> · <값>」(값은 각각, 넓을 때 3개까지 · 그 밖 「<첫 값> 외 n」).
+       글씨는 화살표 바로 아래(매수)·위(매도)에 두되 글씨 폭 안의 봉과 겹치지 않게 놓고(가운데 → 좌우 끝 맞춤 → 조금 내림·올림
+       → 화살표 왼쪽·오른쪽 옆),
+       다른 지점 글씨·피벗 글씨·왼쪽 위 범례와 겹치거나 그림 밖이면 그 지점은 화살표만 둔다(확대하면 다시 보인다).
+       price 가 하나도 없으면 종전과 같다(묶기·글씨·위 여백 변화 없음).
+     - focus(선택) = { from, to } 날짜 — 처음 보이는 구간(받은 봉 범위 안으로 자름). 없거나 잘못되면 range 를 따른다.
      - pivot(선택) = 양수 가격(숫자 또는 숫자 글자). 주어지면 그 가격에 가로 점선 + 차트 안 왼쪽 끝, 선 바로 위에 작은 글씨 「피벗 <값>」
        (가격 축 라벨·선 제목 없음). 글씨는 확대·이동·일/주 전환·크기 변화 때 선을 따라가고, 선이 화면 밖이면 숨는다.
        글씨가 왼쪽 위 범례 줄에 닿으면 선 바로 아래로 내려 쓴다.
@@ -133,16 +142,22 @@
     var d = !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches && getComputedStyle(document.documentElement).colorScheme.indexOf('dark') >= 0);
     return { dark: d, bg: d ? [18, 18, 18] : [255, 255, 255] };
   }
-  function cleanMarks(x) {                                // date·side 만 남긴다(가격 등 다른 값은 버림)
+  function cleanMarks(x) {                                // date·side·price 만 남긴다(그 밖 값은 버림). price = 양수 숫자일 때만
     if (!Array.isArray(x)) return [];
     var out = [];
     x.forEach(function (m) {
       if (!m || typeof m !== 'object') return;
       var t = toTime(m.date), s = String(m.side || '').toLowerCase();
       s = (s === 'buy' || s === 'b' || s === '매수') ? 'buy' : (s === 'sell' || s === 's' || s === '매도') ? 'sell' : '';
-      if (t !== null && s) out.push({ date: t, side: s });
+      var p = cleanPivot(m.price);
+      if (t !== null && s) out.push(p === null ? { date: t, side: s } : { date: t, side: s, p: p });
     });
     return out;
+  }
+  function cleanFocus(x) {                                // { from, to } 날짜 둘 다 맞고 from < to 일 때만, 그 밖 null
+    if (!x || typeof x !== 'object') return null;
+    var f = toTime(x.from), t = toTime(x.to);
+    return (f !== null && t !== null && f < t) ? { from: f, to: t } : null;
   }
   function cleanPivot(x) {                                // 양수 유한 숫자(숫자 또는 '116.97'·'34000' 같은 글자)만, 그 밖 null
     if (typeof x === 'string') x = /^\s*\d+(\.\d+)?\s*$/.test(x) ? parseFloat(x) : NaN;
@@ -165,7 +180,8 @@
     if (el.__mtc) { if (el.__mtc.key === m + '/' + t) return el.__mtc; el.__mtc.destroy(); }
     ensureCss();
     var st = { iv: 'd', range: Object.prototype.hasOwnProperty.call(RANGES, opt.range) ? opt.range : 'y1' };
-    var marks = cleanMarks(opt.markers), pv = cleanPivot(opt.pivot);
+    var marks = cleanMarks(opt.markers), pv = cleanPivot(opt.pivot), fc = cleanFocus(opt.focus);
+    var priced = marks.some(function (q) { return q.p !== undefined; });   // 가격 글씨 있는 지점이 하나라도 있을 때만 새 경로
     var H = { key: m + '/' + t, el: el, st: st, state: 'wait', chart: null, cs: null, vs: null, mas: {}, D: null, W: null, mk: null, pl: null, io: null };
     var LW = null, fmt = m === 'KR' ? fmtKR : fmtUS, plot, ui = {}, mq = null, dead = false, raf = 0;
     el.__mtc = H;
@@ -199,7 +215,8 @@
       if (top + h > ph) { L.style.display = 'none'; return; }
       L.style.top = Math.round(top) + 'px';
     }
-    function pvSoon() { if (ui.pv && !raf && !dead) raf = requestAnimationFrame(pvPlace); }
+    function pvSoon() { if ((ui.pv || priced) && !raf && !dead) raf = requestAnimationFrame(priced ? relay : pvPlace); }
+    function relay() { raf = 0; if (dead || !H.chart) return; if (ui.pv) pvPlace(); lblPlace(); }   // 가격 글씨: 피벗 글씨 자리를 먼저 정하고 지점 글씨를 피해 놓는다
     function cur() { return st.iv === 'w' ? H.W : H.D; }
     function maLen(x) { return st.iv === 'w' ? x.w : x.d; }
     function legend() {                                   // 차트 안 왼쪽 위 1줄 — 지금 그려진 선의 기간 숫자
@@ -210,6 +227,7 @@
     }
     function setMarks() {
       if (!H.mk) return;
+      if (priced) return setMarksP();
       var a = cur(), out = [];
       marks.forEach(function (q) {
         for (var i = 0; i < a.length; i++) {                     // 그 날짜가 든 봉(주봉 = 그 주, 일봉 = 그날 또는 다음 거래일)
@@ -223,8 +241,97 @@
       out.sort(function (p, q) { return p.time - q.time; });
       H.mk.setMarkers(out);
     }
+    function lblFmt(p) { return m === 'KR' ? fmtKR(p) : p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function lblText(g, narrow) {                         // 「매수 12.34」 · 「매수 ×2 12.34 · 12.56」 · 좁으면 「매수 ×3 12.34 외 2」
+      if (!g.ps.length) return '';
+      var w = g.side === 'buy' ? '매수' : '매도', v = g.ps.map(lblFmt);
+      if (g.n > 1) w += ' ×' + g.n;
+      return w + ' ' + ((v.length === 1 || (!narrow && v.length <= 3)) ? v.join(' · ') : v[0] + ' 외 ' + (v.length - 1));
+    }
+    function setMarksP() {                                // 가격 글씨 경로 — 같은 봉·같은 방향 묶어 화살표 1개 + 글씨 1개(글씨 자리는 lblPlace)
+      var a = cur(), gs = [], by = {};
+      marks.forEach(function (q) {
+        for (var i = 0; i < a.length; i++) {
+          if ((st.iv === 'w' && a[i].time <= q.date && q.date <= a[i].last) || (st.iv === 'd' && a[i].time >= q.date && a[i].time - q.date < 7 * 86400)) {
+            var k = a[i].time + q.side, g = by[k];
+            if (!g) { g = by[k] = { i: i, time: a[i].time, side: q.side, n: 0, ps: [] }; gs.push(g); }
+            g.n++; if (q.p !== undefined) g.ps.push(q.p);
+            break;
+          }
+        }
+      });
+      gs.sort(function (p, q) { return p.time - q.time; });
+      H.mk.setMarkers(gs.map(function (g) {
+        return g.side === 'buy' ? { time: g.time, position: 'belowBar', shape: 'arrowUp', color: H.col.ink, size: 1.2 }
+                                : { time: g.time, position: 'aboveBar', shape: 'arrowDown', color: H.col.ink, size: 1.2 };
+      }));
+      (ui.mk || []).forEach(function (L) { if (L.parentNode) L.parentNode.removeChild(L); });
+      ui.mk = gs.filter(function (g) { return g.ps.length; }).map(function (g) {
+        var L = document.createElement('div'); L.className = 'mtc-mk'; L.setAttribute('aria-hidden', 'true');
+        L.style.color = H.col.pvText; L.style.background = H.col.pvBg; L.style.display = 'none'; L.__g = g; plot.appendChild(L); return L;
+      });
+    }
+    function lblPlace() {                                 // 글씨 자리: 화살표 바로 아래(매수)·위(매도), 가운데 → 오른쪽 끝 맞춤 → 왼쪽 끝 맞춤 → 조금 아래/위로.
+      if (!ui.mk || !ui.mk.length) return;              // 봉·다른 글씨·피벗 글씨·범례와 겹치거나 그림 밖이면 숨김(화살표는 남음)
+      var a = cur(), ts = H.chart.timeScale(), W = plot.clientWidth - H.chart.priceScale('right').width();
+      var PH = H.chart.paneSize ? H.chart.paneSize().height : plot.clientHeight;
+      var lr = ts.getVisibleLogicalRange(), bs = lr ? W / Math.max(1, lr.to - lr.from) : 6;
+      var f = Math.floor(Math.min(Math.max(bs, 12), 30)) * 1.2, M = 3, narrow = W < 560, busy = [];
+      function box(e) { return e && e.style.display !== 'none' && e.offsetWidth ? [e.offsetLeft - 2, e.offsetLeft + e.offsetWidth + 2, e.offsetTop - 2, e.offsetTop + e.offsetHeight + 2] : null; }
+      [box(ui.lg), box(ui.pv)].forEach(function (b) { if (b) busy.push(b); });
+      var hit = function (b) { for (var k = 0; k < busy.length; k++) { var o = busy[k]; if (b[0] < o[1] && o[0] < b[1] && b[2] < o[3] && o[2] < b[3]) return true; } return false; };
+      // 먼저 놓을 순서 = 처음 지점 · 마지막 지점 · 나머지 왼쪽부터
+      var ord = ui.mk.slice(); if (ord.length > 2) ord = [ord[0], ord[ord.length - 1]].concat(ord.slice(1, -1));
+      ord.forEach(function (L) {
+        var g = L.__g, x = ts.timeToCoordinate(g.time), buy = g.side === 'buy';
+        L.style.display = 'none';
+        if (x === null || !isFinite(x) || x < 0 || x > W) return;
+        L.textContent = lblText(g, narrow); L.style.visibility = 'hidden'; L.style.display = '';
+        var w = L.offsetWidth, h = L.offsetHeight, yb = H.cs.priceToCoordinate(buy ? a[g.i].low : a[g.i].high);
+        if (yb === null) { L.style.display = 'none'; return; }
+        var y0 = buy ? yb + M + f + 2 : yb - M - f - 2 - h, xs = [x - w / 2, x + 6 - w, x - 6], done = null;
+        var ya = Math.round(buy ? yb + M + f / 2 - h / 2 : yb - M - f / 2 - h / 2);   // 화살표 옆(같은 높이) 자리
+        for (var c = 0; c < xs.length + 2 && !done; c++) {
+          if (c >= xs.length) {                             // 아래·위 자리가 모두 막히면 화살표 왼쪽 → 오른쪽 옆(봉과 안 겹칠 때만)
+            var sx = Math.round(c === xs.length ? x - bs / 2 - 4 - w : x + bs / 2 + 4), sb = [sx, sx + w, ya, ya + h], clash = sx < 0 || sx + w > W || ya < 0 || ya + h > PH || hit(sb);
+            for (var q = 0; q < a.length && !clash; q++) {
+              var xq = ts.timeToCoordinate(a[q].time); if (xq === null || xq + bs / 2 < sb[0] || xq - bs / 2 > sb[1]) continue;
+              var yh = H.cs.priceToCoordinate(a[q].high), yl = H.cs.priceToCoordinate(a[q].low); if (yh !== null && yl !== null && yl > sb[2] - 1 && yh < sb[3] + 1) clash = true;   // 1px 여유(반올림·꼬리)
+            }
+            if (!clash) done = sb;
+            continue;
+          }
+          var x0 = Math.round(Math.max(0, Math.min(W - w, xs[c])));   // 화면 좌표는 정수로 놓고 그 값으로 검사
+          if (x0 > x || x0 + w < x) continue;              // 글씨가 화살표 x 를 덮어야 한다
+          // 글씨 폭 안 봉의 저가 최솟값(매수)·고가 최댓값(매도) — 글씨는 그 봉들 밖으로
+          var lim = buy ? -Infinity : Infinity;
+          for (var j = 0; j < a.length; j++) {
+            var xj = ts.timeToCoordinate(a[j].time); if (xj === null || xj < x0 - bs / 2 - 1 || xj > x0 + w + bs / 2 + 1) continue;
+            var yj = H.cs.priceToCoordinate(buy ? a[j].low : a[j].high); if (yj === null) continue;
+            lim = buy ? Math.max(lim, yj + 2) : Math.min(lim, yj - 2);
+          }
+          var yy = Math.round(buy ? Math.max(y0, lim) : Math.min(y0, lim - h));
+          if (Math.abs(yy - y0) > 26) continue;            // 화살표에서 너무 멀어지면 다른 자리
+          var b = [x0, x0 + w, yy, yy + h];
+          if (yy < 0 || yy + h > PH || hit(b)) continue;
+          done = b;
+        }
+        if (!done) { L.style.display = 'none'; L.style.visibility = ''; return; }
+        busy.push([done[0] - 2, done[1] + 2, done[2] - 1, done[3] + 1]);
+        L.style.left = Math.round(done[0]) + 'px'; L.style.top = Math.round(done[2]) + 'px'; L.style.visibility = '';
+      });
+    }
     function rng() {
       var a = cur(), last = a[a.length - 1].time, n = RANGES[st.range];
+      if (fc) {                                           // focus: 처음 화면 = 그 구간. 가격 글씨가 있고 구간 끝이 마지막 봉이면 오른쪽에 빈 칸 약 90px(마지막 지점 글씨 자리)
+        var f0 = Math.max(a[0].time, fc.from), f1 = Math.min(last, fc.to);
+        if (f0 < f1) {
+          var tsc = H.chart.timeScale(); tsc.setVisibleRange({ from: f0, to: f1 });
+          var lr = priced && fc.to >= last ? tsc.getVisibleLogicalRange() : null, Wp = plot.clientWidth - H.chart.priceScale('right').width();
+          if (lr && Wp > 180) tsc.setVisibleLogicalRange({ from: lr.from, to: lr.to + 90 * (lr.to - lr.from) / (Wp - 90) });
+          return;
+        }
+      }
       if (n) H.chart.timeScale().setVisibleRange({ from: Math.max(a[0].time, monthsBack(last, n)), to: last });
       else H.chart.timeScale().fitContent();
     }
@@ -243,6 +350,7 @@
       MA.forEach(function (x) { H.mas[x.k].applyOptions({ color: c.ma[x.k] }); });
       if (H.pl) H.pl.applyOptions({ color: c.piv });
       if (ui.pv) { ui.pv.style.color = c.pvText; ui.pv.style.background = c.pvBg; }
+      (ui.mk || []).forEach(function (L) { L.style.color = c.pvText; L.style.background = c.pvBg; });
       if (H.D) apply();
     }
     function build(lw, j) {
@@ -261,8 +369,8 @@
                   fontFamily: getComputedStyle(el).fontFamily },
         grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
         // 위 여백 = 맨 위 눈금 글자·범례 줄, 아래 24% = 거래량 막대 + 왼쪽 아래 TradingView 로고 자리(봉이 로고 밑으로 내려가지 않게)
-        rightPriceScale: { borderColor: c.border, entireTextOnly: true, scaleMargins: { top: 0.1, bottom: 0.24 } },
-        timeScale: { borderColor: c.border, fixLeftEdge: true, fixRightEdge: true, minBarSpacing: 0.01 },
+        rightPriceScale: { borderColor: c.border, entireTextOnly: true, scaleMargins: { top: priced ? 0.2 : 0.1, bottom: 0.24 } },   // 가격 글씨가 있으면 위 여백 넓힘(매도 글씨 자리)
+        timeScale: { borderColor: c.border, fixLeftEdge: true, fixRightEdge: !priced, minBarSpacing: 0.01 },   // 가격 글씨가 있으면 오른쪽 빈 칸 허용
         localization: { locale: 'ko-KR', dateFormat: 'yyyy-MM-dd', priceFormatter: fmt },
         handleScroll: { vertTouchDrag: false }, crosshair: { mode: lw.CrosshairMode.Magnet }   // 가로선·가격 축 라벨이 그 봉 종가(가까운 선이 이평이면 그 값)에 붙는다
       });
@@ -291,6 +399,11 @@
         ['pointermove', 'pointerup', 'wheel', 'touchmove', 'touchend', 'dblclick'].forEach(function (ev) { plot.addEventListener(ev, pvSoon, { passive: true }); });
       }
       if (marks.length && lw.createSeriesMarkers) H.mk = lw.createSeriesMarkers(H.cs, []);
+      if (priced && H.mk && !hasPiv) {                    // 가격 글씨 = 확대·이동·크기 변화·세로 축 조작 뒤 1회 다시 놓기(피벗이 있으면 피벗 글씨 갱신 때 같이)
+        H.chart.timeScale().subscribeVisibleLogicalRangeChange(pvSoon);
+        H.chart.timeScale().subscribeSizeChange(pvSoon);
+        ['pointerup', 'wheel', 'touchend', 'dblclick'].forEach(function (ev) { plot.addEventListener(ev, pvSoon, { passive: true }); });
+      }
       var w0 = 0;
       H.chart.timeScale().subscribeSizeChange(function (w) { if (Math.abs(w - w0) > 1) { w0 = w; rng(); } });
       ui.iv.forEach(function (b) { b.addEventListener('click', function () { if (st.iv === b.getAttribute('data-iv')) return; st.iv = b.getAttribute('data-iv'); apply(); rng(); }); });
@@ -311,6 +424,7 @@
       dead = true; if (H.io) H.io.disconnect();
       if (raf) { cancelAnimationFrame(raf); raf = 0; }
       if (ui.pv) { if (ui.pv.parentNode) ui.pv.parentNode.removeChild(ui.pv); ui.pv = null; }
+      (ui.mk || []).forEach(function (L) { if (L.parentNode) L.parentNode.removeChild(L); }); ui.mk = null;
       if (mq && mq.removeEventListener) mq.removeEventListener('change', theme);
       if (H.chart) { try { H.chart.remove(); } catch (e) {} H.chart = null; }
       el.__mtc = null;
@@ -318,6 +432,7 @@
     H.markers = function () { return H.mk ? H.mk.markers() : []; };
     H.pivot = function () { return H.pl ? H.pl.options().price : null; };
     H.pivotLabel = function () { return ui.pv || null; };
+    H.markerLabels = function () { return ui.mk || []; };
     if ('IntersectionObserver' in window) {
       H.io = new IntersectionObserver(function (es) {
         for (var i = 0; i < es.length; i++) if (es[i].isIntersecting) { H.io.disconnect(); H.io = null; start(); return; }
