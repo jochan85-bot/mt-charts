@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>종목 차트 시연</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/mtchart.v1.css">
+<style>
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Segoe UI",sans-serif;background:#f8fafc;color:#0f172a;line-height:1.5}
+  main{max-width:980px;margin:0 auto;padding:16px 14px 40px}
+  h1{font-size:20px;margin:4px 0 6px}
+  h2{font-size:16px;margin:0 0 4px}
+  p{margin:4px 0 10px;font-size:14px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:14px 0}
+  .dark{background:#0f1117;color:#e5e7eb;border-color:#262b36}
+  .tag{display:inline-block;font-size:12px;font-weight:600;padding:1px 7px;border-radius:999px;background:#fde68a;color:#78350f;margin-left:6px;vertical-align:middle}
+  code{font-size:12.5px;background:rgba(128,128,128,.14);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+  .sub{font-size:13px;opacity:.75}
+</style>
+</head>
+<body>
+<main>
+  <h1>종목 차트 시연</h1>
+  <p>일봉·주봉, 기간 1개월~전체, 로그 축, 이동평균 50·150·200일(10·21일은 단추로 켜기)을 확인하는 시연 페이지입니다. 차트는 화면에 보일 때 불러옵니다.</p>
+  <p class="sub">사용법: <code>&lt;script src="https://jochan85-bot.github.io/mt-charts/assets/mtchart.v1.js"&gt;&lt;/script&gt;</code> 를 넣고 <code>MTChart.mount(요소, {market: 'US', ticker: 'AMD'})</code> 를 부릅니다.</p>
+
+  <section class="card">
+    <h2>AMD <span class="tag">예시</span></h2>
+    <p class="sub">▲·▼ 표시는 화면 동작을 보여 주기 위한 가상의 지점 3개입니다. 실제 거래와 무관합니다.</p>
+    <div id="c-us1"></div>
+  </section>
+
+  <section class="card dark">
+    <h2>ASML</h2>
+    <p class="sub">어두운 배경에서의 표시</p>
+    <div id="c-us2"></div>
+  </section>
+
+  <section class="card">
+    <h2>005930 삼성전자</h2>
+    <div id="c-kr1"></div>
+  </section>
+
+  <section class="card dark">
+    <h2>033780 KT&amp;G</h2>
+    <div id="c-kr2"></div>
+  </section>
+
+  <p class="sub">미국 가격은 분할·배당 조정, 한국 가격은 수정주가 기준입니다. 투자 권유가 아닙니다.</p>
+</main>
+<script src="assets/mtchart.v1.js"></script>
+<script>
+  MTChart.mount(document.getElementById('c-us1'), { market: 'US', ticker: 'AMD', range: 'y1',
+    markers: [{ date: '2026-02-17', side: 'buy' }, { date: '2026-05-11', side: 'sell' }, { date: '2026-08-24', side: 'buy' }] });
+  MTChart.mount(document.getElementById('c-us2'), { market: 'US', ticker: 'ASML' });
+  MTChart.mount(document.getElementById('c-kr1'), { market: 'KR', ticker: '005930' });
+  MTChart.mount(document.getElementById('c-kr2'), { market: 'KR', ticker: '033780', range: 'y3' });
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+/* mtchart.v1.css — 종목 차트 표시 모듈(mtchart.v1.js) 모양. 글꼴·글자색·배경은 호스트 페이지를 그대로 따른다.
+   높이 = --mtc-h(기본 300px, 좁은 화면 260px). 색 변수는 mtchart.v1.js 머리말 참조. */
+.mtc{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;font:inherit;color:inherit;margin:6px 0}
+.mtc *{box-sizing:border-box}
+.mtc-msg{font-size:12px;opacity:.7;padding:6px 2px;line-height:1.4}
+/* 불러오기 전 자리 = 차트와 비슷한 높이(화면에 보이는 차트만 불러오도록 — 빈 자리가 작으면 아래 차트까지 한꺼번에 화면 안으로 들어온다) */
+.mtc-msg.mtc-wait{min-height:calc(var(--mtc-h,300px) + 120px)}
+@media (max-width:480px){.mtc-msg.mtc-wait{min-height:calc(var(--mtc-h,260px) + 150px)}}
+.mtc-bar{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 4px}
+.mtc-sp{flex:1 1 auto}
+.mtc-rg .mtc-b{flex:1 1 0;min-width:0;padding-left:2px;padding-right:2px}
+.mtc-b{font:inherit;font-size:12px;line-height:1.2;color:inherit;background:transparent;border:1px solid rgba(128,128,128,.45);border-radius:6px;
+  padding:5px 8px;min-height:30px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.mtc-b.on{background:rgba(128,128,128,.22);border-color:rgba(128,128,128,.8);font-weight:600}
+.mtc-b:disabled{opacity:.35;cursor:default}
+.mtc-b:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.mtc-lb{font-size:11px;opacity:.7;margin-right:2px}
+.mtc-sw{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:3px}
+.mtc-sw.mtc-dash{background-clip:content-box;border-top:0;-webkit-mask:repeating-linear-gradient(90deg,#000 0 4px,transparent 4px 6px);mask:repeating-linear-gradient(90deg,#000 0 4px,transparent 4px 6px)}
+.mtc-plot{position:relative;width:100%;height:var(--mtc-h,300px);overflow:hidden;touch-action:pan-y}
+@media (max-width:480px){.mtc-plot{height:var(--mtc-h,260px)}}
+.mtc-read{font-size:12px;line-height:1.5;min-height:36px;padding:3px 2px 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.mtc-read .mtc-sw{margin-left:6px}
+.mtc-fine{font-size:11px;opacity:.7;line-height:1.4;padding:1px 2px;overflow-wrap:anywhere}
+.mtc-fine[hidden]{display:none}
+.mtc-attr a{color:inherit}
