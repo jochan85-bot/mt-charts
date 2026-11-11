@@ -23,13 +23,19 @@
 <body>
 <main>
   <h1>종목 차트 시연</h1>
-  <p>봉·거래량과 이동평균 50·150·200일(주봉은 10·30·40주)을 보여 주는 시연 페이지입니다. 일봉/주봉 전환 1개, 손가락·휠로 확대·이동합니다. 처음 화면은 1년이며 차트는 화면에 보일 때 불러옵니다.</p>
+  <p>봉·거래량과 이동평균 50·150·200일(주봉은 10·30·40주)을 보여 주는 시연 페이지입니다. 200일선은 밝은 배경에서 검정, 어두운 배경에서 흰색 계열입니다. 일봉/주봉 전환 1개, 손가락·휠로 확대·이동합니다. 처음 화면은 1년이며 차트는 화면에 보일 때 불러옵니다.</p>
   <p class="sub">사용법: <code>&lt;script src="https://jochan85-bot.github.io/mt-charts/assets/mtchart.v1.js"&gt;&lt;/script&gt;</code> 를 넣고 <code>MTChart.mount(요소, {market: 'US', ticker: 'AMD'})</code> 를 부릅니다.</p>
 
   <section class="card">
     <h2>AMD <span class="tag">예시</span></h2>
-    <p class="sub">▲·▼ 표시는 화면 동작을 보여 주기 위한 가상의 지점 3개, 점선 「피벗」은 예시 가격 550입니다. 실제 거래·리포트와 무관합니다.</p>
+    <p class="sub">▲·▼ 표시는 화면 동작을 보여 주기 위한 가상의 지점 3개, 점선과 왼쪽 끝 「피벗 550.00」은 예시 가격 550입니다. 실제 거래·리포트와 무관합니다.</p>
     <div id="c-us1"></div>
+  </section>
+
+  <section class="card dark">
+    <h2>AMD <span class="tag">예시</span></h2>
+    <p class="sub">위와 같은 종목·예시 피벗을 어두운 배경에서 표시합니다.</p>
+    <div id="c-us1d"></div>
   </section>
 
   <section class="card dark">
@@ -40,7 +46,7 @@
 
   <section class="card">
     <h2>005930 삼성전자 <span class="tag">예시</span></h2>
-    <p class="sub">점선 「피벗」은 화면 동작을 보여 주기 위한 예시 가격 250,000원입니다. 실제 거래·리포트와 무관합니다.</p>
+    <p class="sub">점선과 왼쪽 끝 「피벗 250,000」은 화면 동작을 보여 주기 위한 예시 가격 250,000원입니다. 실제 거래·리포트와 무관합니다.</p>
     <div id="c-kr1"></div>
   </section>
 
@@ -56,6 +62,7 @@
   MTChart.mount(document.getElementById('c-us1'), { market: 'US', ticker: 'AMD', range: 'y1',
     markers: [{ date: '2026-02-17', side: 'buy' }, { date: '2026-05-11', side: 'sell' }, { date: '2026-08-24', side: 'buy' }],
     pivot: 550 /* 예시 */ });
+  MTChart.mount(document.getElementById('c-us1d'), { market: 'US', ticker: 'AMD', pivot: 550 /* 예시 */ });
   MTChart.mount(document.getElementById('c-us2'), { market: 'US', ticker: 'ASML' });
   MTChart.mount(document.getElementById('c-kr1'), { market: 'KR', ticker: '005930', pivot: 250000 /* 예시 */ });
   MTChart.mount(document.getElementById('c-kr2'), { market: 'KR', ticker: '033780' });
