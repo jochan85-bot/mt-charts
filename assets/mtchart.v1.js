@@ -17,7 +17,7 @@
        최근 1년 일봉 종가의 최댓값 3배 초과 또는 최솟값 1/3 미만이면 표시하지 않는다(PIV_HI·PIV_LO).
      - range = 처음 보이는 구간 m1·m3·m6·y1·y3·all (기본 y1). 화면에 기간 단추는 없다 — 손가락·휠로 확대·이동.
    데이터: <이 파일 위치>/../data/<시장>/<티커>.json = { schema: 2, t: [YYYYMMDD…], o, h, l, c, v, last_bar_date }
-     데이터가 없거나(404·목록 _missing) 연속성이 의심되는 종목(목록 _suspect)은 「차트 데이터 없음」 한 줄만 표시한다.
+     데이터가 없거나(404·목록 _missing) 연속성이 의심되는 종목(목록 _suspect)은 「분할·병합 확인 중 — 차트 보류」 한 줄만 표시한다(데이터 없음은 「차트 데이터 없음」).
    라이브러리: TradingView Lightweight Charts™ 5.2.1 (Apache-2.0, 버전 고정 CDN + SRI). 못 불러오면 차트 자리에만 안내 문구.
    화면: 봉 + 거래량 막대(아래) + 단순이동평균 50·150·200일 상시 표시. 일봉/주봉 전환 1개 — 주봉(월요일 시작 주)은 10·30·40주선.
      이동평균은 받은 봉 전체로 계산한다 — 화면 왼쪽 끝부터 선이 그려진다(봉이 모자라면 계산되는 구간만).
@@ -81,7 +81,8 @@
   function getData(m, t) {                                // 반환 Promise(데이터 | null) — 종목별 1회
     var k = m + '/' + t;
     if (!cache[k]) cache[k] = getLists().then(function (L) {
-      if (listed(L[0], m, t) || listed(L[1], m, t)) return null;
+      if (listed(L[0], m, t)) return null;
+      if (listed(L[1], m, t)) return { suspect: true };      // 분할·병합 의심 = 데이터 없음과 구분해 표시
       return getJSON(DATA + m + '/' + t + '.json');
     });
     return cache[k];
@@ -416,6 +417,7 @@
       H.state = 'loading';
       getData(m, t).then(function (j) {
         if (dead) return;
+        if (j && j.suspect) return msg('분할·병합 확인 중 — 차트 보류', 'none');
         if (!j || !j.t || !j.t.length) return msg('차트 데이터 없음', 'none');
         return loadLib().then(function (lw) { if (!dead) build(lw, j); }, function () { if (!dead) msg('차트를 불러오지 못했습니다.', 'fail'); });
       }).catch(function () { if (!dead) msg('차트를 불러오지 못했습니다.', 'fail'); });
